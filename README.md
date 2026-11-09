@@ -6,12 +6,11 @@ I no longer really play the game, so ongoing updates and fixes are unlikely.
 
 <!-- drh:show -->
 Shift+R quickly restarts the current dungeon with its entry settings and keeps the gold cache synchronized.
-<!-- /drh:show -->
-
 - Shift+R exits and re-enters using the saved dungeon-entry settings.
 - Preserves the friends-only setting and waits for server exit confirmation.
 - Prevents duplicate restart requests and ignores chat input and held-key repeats.
 - Keeps the account gold cache synchronized with server currency updates.
+<!-- /drh:show -->
 
 Replays entry to the dungeon, not its current floor or procedural seed. Friend/map-instance joins replay their original arguments and may rejoin that instance. Other party members are not forced to restart.
 
