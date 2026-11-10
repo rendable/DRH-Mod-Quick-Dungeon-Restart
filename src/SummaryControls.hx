@@ -94,7 +94,6 @@ class SummaryControls {
         repeat.rolloverFilter = DBGlobal.UI_ROLLOVER_FILTER;
         repeat.releaseCallback = function() { onRepeat(); };
         repeat.upNavigation = next;
-        repeat.setTooltip("Repeat this dungeon (Shift+R). Handle all remaining crates first.");
         enabled = true; // Force the first update to apply the requested state.
     }
 
