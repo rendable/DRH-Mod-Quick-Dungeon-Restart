@@ -1,4 +1,4 @@
-package mods.quick_restart;
+package mods.quick_dungeon_restart;
 
 /** Preserve authoritative player currency in the account cache used by new HUDs. */
 class GoldCache {

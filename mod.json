@@ -1,5 +1,5 @@
 {
-  "id": "quick_restart",
+  "id": "quick_dungeon_restart",
   "name": "Quick Dungeon Restart",
   "description": "Shift+R quickly restarts the current dungeon with its entry settings and keeps the gold cache synchronized.",
   "version": "0.1.1",

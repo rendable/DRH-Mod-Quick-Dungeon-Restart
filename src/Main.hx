@@ -1,4 +1,4 @@
-package mods.quick_restart;
+package mods.quick_dungeon_restart;
 
 import mods.api.Context;
 import mods.api.Mod;

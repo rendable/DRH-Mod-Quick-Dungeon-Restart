@@ -1,4 +1,4 @@
-package mods.quick_restart;
+package mods.quick_dungeon_restart;
 
 /** An immutable copy of the loading state's six entry arguments. */
 class EntrySettings {
