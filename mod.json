@@ -1,8 +1,8 @@
 {
   "id": "quick_dungeon_restart",
   "name": "Quick Dungeon Restart",
-  "description": "Shift+R quickly restarts the current dungeon with its entry settings and keeps the gold cache synchronized.",
-  "version": "0.1.1",
+  "description": "Shift+R and a native Repeat button replay dungeons; Next and Repeat preserve Friends Only and summary reward handling.",
+  "version": "0.2.0",
   "author": "Danny",
   "api": "1.2",
   "drh": "17",

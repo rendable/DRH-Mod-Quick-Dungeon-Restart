@@ -10,6 +10,7 @@ import openfl.events.Event;
 import openfl.events.KeyboardEvent;
 import stateMachine.mainStateMachine.LoadingScreenState;
 import distributedObjects.PlayerGameObjectOwner;
+import distributedObjects.DistributedDungeonSummary;
 
 class Main extends Mod {
     var context:Context;
@@ -23,10 +24,20 @@ class Main extends Mod {
     var ctrl:Bool = false;
     var alt:Bool = false;
     var player:PlayerGameObjectOwner;
+    var summary:DistributedDungeonSummary;
+    var summaryControls:SummaryControls;
+    var summaryControlsFailed:Bool = false;
+    var summaryExit:Bool = false;
+    var nextPrivacy:NextPrivacy = new NextPrivacy();
 
     override public function init(context:Context):Void {
         this.context = context;
         context.core.onObjectReady(function(object) {
+            if (Std.isOfType(object, DistributedDungeonSummary)) {
+                clearSummary();
+                summary = cast object;
+                summaryControlsFailed = false;
+            }
             if (Std.isOfType(object, PlayerGameObjectOwner)) {
                 player = cast object;
                 syncGold(player);
@@ -37,6 +48,7 @@ class Main extends Mod {
                 syncGold(cast object);
         });
         context.core.onObjectGone(function(object) {
+            if (object == summary) clearSummary();
             if (object == player) {
                 syncGold(player);
                 player = null;
@@ -44,8 +56,12 @@ class Main extends Mod {
         });
         context.core.onStateEnter(stateEntered);
         context.core.onStateExit(function(machine, state) {
-            if (facade != null && machine == facade.mainStateMachine && state.name == "RunState" && pending)
-                cancel("restart cancelled by another state transition");
+            if (facade == null || machine != facade.mainStateMachine) return;
+            // MainStateMachine already wrote the loading arguments, but the loading state's
+            // enterState (and its network request) has not run yet at this point.
+            if (state.name == "ReloadTownState")
+                nextPrivacy.apply(Reflect.field(facade.mainStateMachine, "mLoadingScreenState"));
+            if (state.name == "RunState" && pending) cancel("restart cancelled by another state transition");
         });
         context.onKeyDown(function(key) {
             if (!EntrySettings.shortcut(key, shift, ctrl, alt)) return false;
@@ -83,6 +99,7 @@ class Main extends Mod {
             var entry = new EntrySettings(state);
             saved = entry.valid() ? entry : null;
         }
+        if (state.name == "TownState" || state.name == "SocketErrorState") nextPrivacy.clear();
     }
 
     function captureRetainedEntry():Void {
@@ -101,6 +118,20 @@ class Main extends Mod {
             context.log("restart unavailable: no valid dungeon entry settings");
             return true;
         }
+        var summaryCallback:Dynamic = null;
+        if (summary != null) {
+            var reason = SummaryRules.blocked(summary);
+            if (reason != null) {
+                context.log("repeat unavailable: " + reason);
+                return true;
+            }
+            var section = Reflect.field(summary, "mNextFloorSection");
+            summaryCallback = section == null ? null : Reflect.field(section, "mCallback");
+            if (!Reflect.isFunction(summaryCallback)) {
+                context.log("repeat unavailable: native summary exit callback was not found");
+                return true;
+            }
+        }
         if (facade.mDistributedObjectManager == null || facade.mDistributedObjectManager.mMatchMaker == null) return true;
         var run = Reflect.field(facade.mainStateMachine, "mRunState");
         var events:EventComponent = cast Reflect.field(run, "mEventComponent");
@@ -110,11 +141,17 @@ class Main extends Mod {
                 return true;
             }
             pendingEntry = saved;
+            summaryExit = summary != null;
             syncGold(player);
             pending = true;
             deadline = Date.now().getTime() + 15000;
             context.log("restart requested; waiting for server exit confirmation");
-            facade.mDistributedObjectManager.mMatchMaker.RequestExit();
+            if (summaryExit) {
+                // Native summary cleanup, without invoking Next's different-dungeon callback.
+                Reflect.callMethod(summary, summaryCallback, []);
+            } else {
+                facade.mDistributedObjectManager.mMatchMaker.RequestExit();
+            }
         } catch (error:Dynamic) {
             cancel("restart request failed: " + Std.string(error));
         }
@@ -124,14 +161,25 @@ class Main extends Mod {
     function exited(event:Event):Void {
         if (!pending) return;
         var entry = pendingEntry;
+        var refreshAccount = summaryExit;
         pending = false;
         pendingEntry = null;
+        summaryExit = false;
         exitHook.restore();
         try {
             if (entry == null || !entry.valid()) throw "saved entry is unavailable";
-            context.log("exit confirmed; re-entering dungeon");
-            facade.mainStateMachine.enterLoadingScreenState(entry.mapNodeID, entry.nodeType,
-                entry.friendID, entry.mapID, entry.jumpToMap, entry.friendsOnly);
+            if (refreshAccount) {
+                context.log("summary exit confirmed; refreshing rewards before re-entering dungeon");
+                var machine = facade.mainStateMachine;
+                machine.setOneShotReloadTownCallback(function() {
+                    if (!context.core.alive) { machine.enterTownState(); return; }
+                    reenter(entry);
+                });
+                machine.enterReloadTownState();
+            } else {
+                context.log("exit confirmed; re-entering dungeon");
+                reenter(entry);
+            }
         } catch (error:Dynamic) {
             context.log("restart failed; returning to town: " + Std.string(error));
             facade.mainStateMachine.enterReloadTownState();
@@ -140,11 +188,42 @@ class Main extends Mod {
 
     function update(event:Event):Void {
         if (pending && Date.now().getTime() > deadline) cancel("restart timed out; normal exit behavior restored");
+        if (summary == null || facade == null || summaryControlsFailed || !context.core.alive) return;
+        try {
+            if (summaryControls == null) summaryControls = new SummaryControls(facade, summary,
+                function() { requestRestart(); }, rememberNextPrivacy);
+            summaryControls.update(!pending && saved != null && saved.valid() && SummaryRules.blocked(summary) == null);
+        } catch (error:Dynamic) {
+            summaryControlsFailed = true;
+            context.log("summary button unavailable: " + Std.string(error));
+            if (summaryControls != null) summaryControls.destroy();
+            summaryControls = null;
+        }
+    }
+
+    function reenter(entry:EntrySettings):Void {
+        facade.mainStateMachine.enterLoadingScreenState(entry.mapNodeID, entry.nodeType,
+            entry.friendID, entry.mapID, entry.jumpToMap, entry.friendsOnly);
+    }
+
+    function rememberNextPrivacy():Void {
+        if (saved == null) captureRetainedEntry();
+        if (summary == null || saved == null || !saved.valid()) return;
+        var section = Reflect.field(summary, "mNextFloorSection");
+        var next = section == null ? null : Reflect.field(section, "mNextDungeon");
+        if (next != null) nextPrivacy.arm(next.Id, saved.friendsOnly);
+    }
+
+    function clearSummary():Void {
+        if (summaryControls != null) summaryControls.destroy();
+        summaryControls = null;
+        summary = null;
     }
 
     function cancel(reason:String):Void {
         pending = false;
         pendingEntry = null;
+        summaryExit = false;
         exitHook.restore();
         if (context != null) context.log(reason);
     }
@@ -152,6 +231,9 @@ class Main extends Mod {
     override public function dispose():Void {
         pending = false;
         pendingEntry = null;
+        summaryExit = false;
+        nextPrivacy.clear();
+        clearSummary();
         exitHook.restore();
         context.overlay.removeEventListener(Event.ENTER_FRAME, update);
         if (facade != null) {

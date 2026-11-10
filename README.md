@@ -5,14 +5,21 @@ I no longer really play the game, so ongoing updates and fixes are unlikely.
 # Quick Dungeon Restart
 
 <!-- drh:show -->
-Shift+R quickly restarts the current dungeon with its entry settings and keeps the gold cache synchronized.
+Shift+R and a native Repeat button replay dungeons. Next and Repeat preserve Friends Only and summary reward handling.
 - Shift+R exits and re-enters using the saved dungeon-entry settings.
-- Preserves the friends-only setting and waits for server exit confirmation.
+- Adds a Repeat button beneath Next using the game's own artwork, font and hover styling.
+- Shift+R also works on the dungeon summary, after the reveal and crate handling finish.
+- Keep, open or abandon remaining crates and close summary dialogs before repeating; it does not auto-claim loot.
+- Summary repeats use native exit cleanup and refresh the account before re-entry.
+- Next and Repeat preserve the previous entry's Friends Only setting, both on and off.
+- Waits for server exit confirmation.
 - Prevents duplicate restart requests and ignores chat input and held-key repeats.
 - Keeps the account gold cache synchronized with server currency updates.
 <!-- /drh:show -->
 
 Replays entry to the dungeon, not its current floor or procedural seed. Friend/map-instance joins replay their original arguments and may rejoin that instance. Other party members are not forced to restart.
+
+Restarting during gameplay still leaves early and does not award unfinished dungeon completion rewards. For completion XP and crates, finish the dungeon, handle the summary rewards, then use Repeat or Shift+R.
 
 ## Multiplayer restart order
 
